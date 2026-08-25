@@ -12,6 +12,38 @@ AFTERMATH inserts the missing layer:
 
 **Idea → AFTERMATH → Production**
 
+## Go live (Vercel)
+
+This is a Next.js app with API routes, so it wants a Node host. **Vercel is the default.** Railway or Render also work from the Dockerfile.
+
+`main` is still empty. Deploy branch **`cursor/aftermath-simulation-engine-6098`** (or merge [PR #1](https://github.com/venvennnn/aftermath/pull/1) first, then deploy `main`).
+
+### Fastest: import the GitHub repo
+
+1. Open [vercel.com/new](https://vercel.com/new) and sign in with GitHub.
+2. Import **`venvennnn/aftermath`**.
+3. Leave the framework as Next.js.
+4. Set **Production Branch** to `cursor/aftermath-simulation-engine-6098`.
+5. Add environment variables:
+
+| Name | Required | What it does |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | recommended | Decision Agent, Observer prose, live conversations |
+| `ELEVENLABS_API_KEY` | optional | Voices for calls from the future |
+| `ELEVENLABS_VOICE_ID` | optional | Override the default voice |
+
+6. Click **Deploy**. You get a URL like `https://aftermath-xxxx.vercel.app`.
+
+The engine still runs without Gemini; conversations and richer parsing light up once the key is set.
+
+### CLI
+
+```bash
+npx vercel --yes --prod
+```
+
+Paste a token from [vercel.com/account/tokens](https://vercel.com/account/tokens) if asked.
+
 ## Run locally
 
 ```bash

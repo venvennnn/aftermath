@@ -2,7 +2,9 @@
   "name": "aftermath",
   "version": "0.1.0",
   "private": true,
-  "description": "AFTERMATH — a staging environment for business decisions. Simulate thousands of synthetic customers before a change reaches production.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
     "build": "next build",
