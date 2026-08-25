@@ -38,7 +38,7 @@ export default function Report({
       <section className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Kpi label="Predicted churn" value={pct(result.deltas.churnRate)} hint={`${result.treatment.metrics.churned} accounts`} danger={result.deltas.churnRate > 0.03} />
         <Kpi label="Support volume" value={pct(result.deltas.supportVolume)} hint={`${result.treatment.metrics.tickets} tickets`} danger={result.deltas.supportVolume > 0.1} />
-        <Kpi label="Enterprise escalations" value={pct(result.deltas.enterpriseEscalations)} hint={`${result.treatment.metrics.enterpriseEscalations} high-value`} danger={result.deltas.enterpriseEscalations > 0.05} />
+        <Kpi label="Enterprise escalations" value={pct(result.deltas.enterpriseEscalations)} hint={`${result.control.metrics.enterpriseEscalations} → ${result.treatment.metrics.enterpriseEscalations} high-value`} danger={result.deltas.enterpriseEscalations > 0.03} />
         <Kpi label="Discount expenditure" value={inr(result.deltas.discountSpendInr, true)} hint="retention spend vs control" />
         <Kpi label="Projected revenue impact" value={inr(result.deltas.revenueImpactInr, true)} hint="price take minus lost CLV" danger={result.deltas.revenueImpactInr < 0} />
       </section>

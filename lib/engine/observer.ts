@@ -28,16 +28,19 @@ export function buildStories(treatment: UniverseSummary, limit = 6): CausalStory
   const scored = [...byCustomer.entries()]
     .map(([customerId, events]) => {
       const customer = treatment.customers.find((c) => c.id === customerId);
-      const critical = events.filter((e) => e.severity === "critical").length;
-      const kinds = new Set(events.map((e) => e.kind));
+      const material = events.filter((event) => event.severity !== "info");
+      const critical = material.filter((e) => e.severity === "critical").length;
+      const kinds = new Set(material.map((e) => e.kind));
       const score =
-        (customer?.clv ?? 0) / 50_000 +
-        events.length * 3 +
+        (customer?.clv ?? 0) / 1_20_000 +
+        Math.min(material.length, 8) * 4 +
         critical * 18 +
-        (kinds.has("finance_reject") ? 22 : 0) +
+        (kinds.has("finance_reject") ? 28 : 0) +
         (kinds.has("ai_reply") && kinds.has("churn") ? 16 : 0) +
-        (customer?.status === "churned" ? 12 : 0);
-      return { customerId, events, customer, score };
+        (kinds.has("phone_blocked") ? 10 : 0) +
+        (customer?.status === "churned" ? 48 : 0) +
+        (customer?.status === "downgraded" ? 14 : 0);
+      return { customerId, events: material, customer, score };
     })
     .filter((row) => row.events.length >= 2 && row.customer)
     .sort((a, b) => b.score - a.score)
@@ -52,10 +55,16 @@ export function buildStories(treatment: UniverseSummary, limit = 6): CausalStory
       outcome: event.detail,
     }));
     const last = row.events[row.events.length - 1]!;
+    const peak =
+      row.events.find((event) => event.kind === "churn") ??
+      row.events.find((event) => event.kind === "finance_reject") ??
+      row.events.find((event) => event.kind === "downgrade") ??
+      row.events.find((event) => event.severity === "critical") ??
+      last;
     const insight = insightFor(row.events, customer.status);
     return {
       id: `story_${customer.id}`,
-      headline: `${customer.company} · ${last.title}`,
+      headline: `${customer.company} · ${peak.title}`,
       customerId: customer.id,
       outcome: customer.status,
       chain,

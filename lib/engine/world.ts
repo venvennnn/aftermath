@@ -83,6 +83,9 @@ function decisionShock(customer: Customer, decision: ParsedDecision, policy: Ent
 }
 
 function topicFor(customer: Customer, decision: ParsedDecision, day: number): string {
+  if (decision.affectedPlans.length === 0) {
+    return hashFloat(customer.seed, day, "topic") < 0.35 ? "billing" : "product_issue";
+  }
   if (decision.type === "pricing") return "pricing_change";
   if (decision.type === "support_channel") return "phone_support_removed";
   if (decision.type === "refund_policy") return "refund_window";
@@ -99,8 +102,12 @@ function handleTicket(
   day: number,
   decision: ParsedDecision,
   ticketsToday: number,
+  queueStress: number,
 ): void {
-  const overload = ticketsToday / Math.max(8, world.policy.humanSupportCapacity);
+  const overload = Math.max(
+    ticketsToday / Math.max(8, world.policy.humanSupportCapacity),
+    queueStress,
+  );
   const topic = topicFor(customer, decision, day);
   const wantsPhone = customer.usesPhoneSupport && hashFloat(customer.seed, day, "chan") < 0.55;
   let channel: Ticket["channel"] = wantsPhone ? "phone" : hashFloat(customer.seed, day, "chat") < 0.5 ? "chat" : "email";
@@ -130,6 +137,7 @@ function handleTicket(
   let handler: Actor = "support";
   let quality = 0.78 - Math.max(0, overload - 0.7) * 0.28;
   if (customer.plan === "enterprise") quality += 0.08;
+  if (customer.originalPlan === "enterprise" && overload > 0.75) quality -= 0.3;
 
   if (aiEligible && (customer.plan !== "enterprise" || overload > 1.2)) {
     handler = "ai_agent";
@@ -199,7 +207,17 @@ function handleTicket(
       "warn",
       { tool: "freshworks.ticket.escalate" },
     );
-    maybeRetain(world, customer, day);
+    maybeRetain(
+      world,
+      customer,
+      day,
+      topic === "pricing_change" ||
+        topic === "phone_support_removed" ||
+        topic === "refund_window" ||
+        topic === "sla_miss" ||
+        topic === "ai_mishandle" ||
+        topic === "cancellation_rules",
+    );
   } else if (ticket.resolved) {
     customer.frustration = clamp(customer.frustration - 0.06);
   }
@@ -217,13 +235,12 @@ function handlerQualityLine(topic: string, quality: number, customer: Customer):
   return `Assist resolved a ${topic.replaceAll("_", " ")} question for ${customer.company}.`;
 }
 
-function maybeRetain(world: World, customer: Customer, day: number): void {
+function maybeRetain(world: World, customer: Customer, day: number, decisionRelated: boolean): void {
   if (!customer.alive) return;
   const shouldOffer =
-    customer.clv > 1_20_000 ||
-    customer.plan === "enterprise" ||
-    customer.tenureMonths > 18;
-  if (!shouldOffer || hashFloat(customer.seed, day, "retain") < 0.18) return;
+    (decisionRelated || customer.frustration > 0.48) &&
+    (customer.clv > 1_20_000 || customer.plan === "enterprise" || customer.tenureMonths > 18);
+  if (!shouldOffer || hashFloat(customer.seed, day, "retain") < 0.22) return;
 
   customer.status = "negotiating";
   const asked = customer.plan === "enterprise" ? 22 : 16 + Math.round(customer.priceSensitivity * 10);
@@ -263,6 +280,16 @@ function maybeRetain(world: World, customer: Customer, day: number): void {
         "critical",
         { tool: "freshworks.policy.finance.approve" },
       );
+      maybeChurn(
+        world,
+        customer,
+        day,
+        decisionRelated
+          ? 0.11 + customer.priceSensitivity * 0.14 + customer.frustration * 0.08
+          : 0.03,
+        "Finance refused the save their support team had already spoken out loud.",
+        "churn_after_reject",
+      );
       return;
     }
 
@@ -287,6 +314,34 @@ function maybeRetain(world: World, customer: Customer, day: number): void {
   customer.status = "active";
 }
 
+function maybeChurn(
+  world: World,
+  customer: Customer,
+  day: number,
+  probability: number,
+  reason?: string,
+  salt = "churn",
+): boolean {
+  if (!customer.alive) return false;
+  if (hashFloat(customer.seed, day, salt) >= clamp(probability, 0, 0.95)) return false;
+  customer.alive = false;
+  customer.status = "churned";
+  customer.daysToChurn = day;
+  customer.nps = Math.min(customer.nps, -20);
+  event(
+    world,
+    day,
+    customer,
+    "customer",
+    "churn",
+    `${customer.company} churned`,
+    reason ??
+      `${customer.name} crossed their threshold after ${customer.ticketsOpened} tickets and ${customer.escalations} escalations.`,
+    "critical",
+  );
+  return true;
+}
+
 function maybeCommercialMove(
   world: World,
   customer: Customer,
@@ -295,22 +350,11 @@ function maybeCommercialMove(
 ): void {
   if (!customer.alive) return;
 
-  const churnPressure =
-    customer.frustration * 0.5 +
-    shock * 0.85 * customer.priceSensitivity +
-    customer.churnRisk * 0.25 -
-    customer.loyalty * 0.28 -
-    customer.switchingCost * 0.22 -
-    customer.discountGrantedPercent / 120;
-
-  const downgradeRoll = hashFloat(customer.seed, day, "down");
-  if (
-    customer.plan !== "basic" &&
-    shock > 0.12 &&
-    customer.priceSensitivity > 0.5 &&
-    downgradeRoll < shock * 0.22 &&
-    churnPressure < customer.churnThreshold - 0.08
-  ) {
+  const downP =
+    customer.plan === "basic"
+      ? 0
+      : shock * customer.priceSensitivity * (1 - customer.loyalty * 0.35) * 0.022;
+  if (hashFloat(customer.seed, day, "down") < downP) {
     const from = customer.plan;
     customer.plan = customer.plan === "enterprise" ? "pro" : "basic";
     customer.status = "downgraded";
@@ -330,8 +374,11 @@ function maybeCommercialMove(
     return;
   }
 
-  const acceptRoll = hashFloat(customer.seed, day, "accept");
-  if (shock > 0.08 && acceptRoll < customer.willingnessToPay * 0.04 && customer.frustration < 0.4) {
+  if (
+    shock > 0.08 &&
+    hashFloat(customer.seed, day, "accept") < customer.willingnessToPay * 0.03 &&
+    customer.frustration < 0.35
+  ) {
     event(
       world,
       day,
@@ -344,22 +391,15 @@ function maybeCommercialMove(
     );
   }
 
-  if (churnPressure > customer.churnThreshold && hashFloat(customer.seed, day, "churn") < 0.55 + shock) {
-    customer.alive = false;
-    customer.status = "churned";
-    customer.daysToChurn = day;
-    customer.nps = Math.min(customer.nps, -20);
-    event(
-      world,
-      day,
-      customer,
-      "customer",
-      "churn",
-      `${customer.company} churned`,
-      `${customer.name} crossed their threshold after ${customer.ticketsOpened} tickets and ${customer.escalations} escalations.`,
-      "critical",
-    );
-  }
+  const save = customer.discountGrantedPercent / 100;
+  let hazard =
+    0.00018 +
+    customer.churnRisk * 0.00025 +
+    shock * customer.priceSensitivity * (1 - customer.loyalty * 0.45) * (1 - customer.switchingCost * 0.4) * 0.03 +
+    Math.max(0, customer.frustration - 0.16) * 0.007;
+  hazard *= Math.max(0.15, 1 - save * 1.5);
+  if (customer.originalPlan === "enterprise") hazard *= 0.55;
+  maybeChurn(world, customer, day, hazard);
 }
 
 function snapshot(world: World, day: number, baselinePricing: Record<Plan, number>): DailySnapshot {
@@ -395,7 +435,7 @@ function metrics(world: World): UniverseMetrics {
     enterpriseEscalations: world.events.filter((e) => {
       if (e.kind !== "escalate") return false;
       const customer = world.customers.find((c) => c.id === e.customerId);
-      return customer?.originalPlan === "enterprise" || (customer?.clv ?? 0) > 9_00_000;
+        return customer?.originalPlan === "enterprise" || (customer?.clv ?? 0) > 4_50_000;
     }).length,
     discountSpendInr: world.daily.reduce((sum, d) => sum + d.discountsInr, 0),
     revenueInr: last?.revenueInr ?? 0,
@@ -441,29 +481,34 @@ export function runUniverse(args: {
     let ticketsToday = 0;
     const active = world.customers.filter((c) => c.alive);
 
+    const yesterday = world.daily[world.daily.length - 1];
+    const queueStress =
+      (yesterday?.tickets ?? 0) / Math.max(8, world.policy.humanSupportCapacity);
+
     for (const customer of active) {
-      const shock = organic
-        ? 0.02 + customer.churnRisk * 0.04
-        : day >= args.decision.startDay
-          ? decisionShock(customer, args.decision, world.policy, args.baselinePolicy)
-          : 0.02;
+      const decisionPart =
+        organic || day < args.decision.startDay
+          ? 0
+          : decisionShock(customer, args.decision, world.policy, args.baselinePolicy);
+      const spillover =
+        !organic && queueStress > 1.05 && customer.originalPlan === "enterprise" ? 0.06 : 0;
+      const shock = 0.012 + customer.churnRisk * 0.01 + decisionPart + spillover;
 
       const contactP =
-        0.012 +
-        shock * 0.38 * (0.35 + customer.frustration) +
-        customer.supportTicketsLast90 / 400 +
-        (customer.usesPhoneSupport && args.decision.removePhoneSupport ? 0.04 : 0);
+        0.01 +
+        shock * 0.4 * (0.35 + customer.frustration) +
+        customer.supportTicketsLast90 / 450 +
+        (customer.usesPhoneSupport && args.decision.removePhoneSupport && !organic ? 0.045 : 0) +
+        (spillover ? 0.025 : 0);
 
       if (hashFloat(customer.seed, day, "contact") < contactP) {
         ticketsToday += 1;
-        handleTicket(world, customer, day, args.decision, ticketsToday);
+        handleTicket(world, customer, day, args.decision, ticketsToday, queueStress);
       } else {
-        customer.frustration = clamp(customer.frustration + shock * 0.015 - 0.004);
+        customer.frustration = clamp(customer.frustration + decisionPart * 0.02 - 0.003);
       }
 
-      if (day % 5 === 0 || customer.frustration > 0.48 || shock > 0.2) {
-        maybeCommercialMove(world, customer, day, shock);
-      }
+      maybeCommercialMove(world, customer, day, shock);
     }
 
     world.daily.push(snapshot(world, day, args.baselinePolicy.pricing));

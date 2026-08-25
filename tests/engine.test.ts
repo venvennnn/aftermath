@@ -43,7 +43,8 @@ describe("world engine", () => {
       populationSize: 160,
       seed: 7,
     });
-    expect(sim.treatment.metrics.churnRate).toBeGreaterThanOrEqual(sim.control.metrics.churnRate);
+    expect(sim.treatment.metrics.churnRate).toBeGreaterThan(sim.control.metrics.churnRate);
+    expect(sim.treatment.metrics.tickets).toBeGreaterThan(sim.control.metrics.tickets);
     expect(sim.stories.length).toBeGreaterThan(0);
     expect(sim.incomingCall.script.length).toBeGreaterThan(40);
     expect(sim.counterfactuals).toHaveLength(2);

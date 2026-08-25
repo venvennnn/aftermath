@@ -27,7 +27,7 @@ export function runSimulation(options: RunOptions): SimulationResult {
 
   const seed = options.seed ?? hash32(options.decisionText, populationSize, horizonDays);
   const company = MERIDIAN;
-  const baseline = baselinePolicy(company);
+  const baseline = baselinePolicy(company, populationSize);
   const population = createPopulation(populationSize, seed);
 
   const control = runUniverse({
@@ -83,9 +83,7 @@ export function runSimulation(options: RunOptions): SimulationResult {
   const ticketsDelta =
     (treatment.metrics.tickets - control.metrics.tickets) /
     Math.max(1, control.metrics.tickets);
-  const escDelta =
-    (treatment.metrics.enterpriseEscalations - control.metrics.enterpriseEscalations) /
-    Math.max(1, control.metrics.enterpriseEscalations);
+  const n = populationSize;
 
   return {
     id: `sim_${seed.toString(16)}`,
@@ -99,12 +97,13 @@ export function runSimulation(options: RunOptions): SimulationResult {
     deltas: {
       churnRate: treatment.metrics.churnRate - control.metrics.churnRate,
       supportVolume: ticketsDelta,
-      enterpriseEscalations: escDelta,
+      enterpriseEscalations:
+        treatment.metrics.enterpriseEscalations / n - control.metrics.enterpriseEscalations / n,
       discountSpendInr:
         treatment.metrics.discountSpendInr - control.metrics.discountSpendInr,
       revenueImpactInr:
         (treatment.metrics.revenueInr - control.metrics.revenueInr) * horizonDays -
-        (treatment.metrics.lostClvInr - control.metrics.lostClvInr) * 0.15,
+        (treatment.metrics.lostClvInr - control.metrics.lostClvInr),
       nps: treatment.metrics.npsAvg - control.metrics.npsAvg,
       tickets: treatment.metrics.tickets - control.metrics.tickets,
     },
