@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ember: #e8a54b;
+  --signal: #ff4d3a;
+  --mint: #7ee0c6;
+  --paper: #f4efe6;
+  --ink: #07060a;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: #07060a;
+  color: #f4efe6;
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(232, 165, 75, 0.12), transparent 55%),
+    radial-gradient(900px 500px at 110% 20%, rgba(255, 77, 58, 0.08), transparent 50%),
+    radial-gradient(800px 400px at -10% 80%, rgba(126, 224, 198, 0.05), transparent 45%),
+    #07060a;
+}
+
+::selection {
+  background: rgba(232, 165, 75, 0.35);
+  color: #fff8ee;
+}
+
+.font-serif {
+  font-family: var(--font-serif), Georgia, serif;
+}
+
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+.kicker {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  letter-spacing: 0.22em;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #e8a54b;
+}
+
+.grain,
+.vignette {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+}
+
+.grain {
+  z-index: 60;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.7 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  mix-blend-mode: overlay;
+}
+
+.vignette {
+  z-index: 50;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(0, 0, 0, 0.62) 100%);
+}
+
+.hairline {
+  background: linear-gradient(90deg, transparent, rgba(232, 165, 75, 0.7), transparent);
+  height: 1px;
+}
+
+.ember-rule {
+  height: 1px;
+  width: 7rem;
+  background: #e8a54b;
+  box-shadow: 0 0 18px rgba(232, 165, 75, 0.7);
+}
+
+.panel {
+  background: rgba(13, 11, 18, 0.72);
+  border: 1px solid rgba(244, 239, 230, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.pulse-ring {
+  animation: pulseRing 1.6s ease-out infinite;
+}
+
+@keyframes pulseRing {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+@keyframes ringBounce {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+.ring-phone {
+  animation: ringBounce 0.16s linear infinite;
+}
+
+@keyframes typeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.enter {
+  animation: typeIn 0.55s ease both;
+}
+
+.day-glow {
+  text-shadow: 0 0 40px rgba(232, 165, 75, 0.35);
+}
+
+input,
+textarea,
+button {
+  outline: none;
+}
+
+textarea::placeholder {
+  color: rgba(244, 239, 230, 0.32);
+}
+
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(244, 239, 230, 0.15);
+  border-radius: 99px;
+}
