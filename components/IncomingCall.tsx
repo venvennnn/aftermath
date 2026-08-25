@@ -67,7 +67,11 @@ export default function IncomingCallOverlay({
 
   async function answer() {
     setPhase("talking");
+    const failSafe = window.setTimeout(() => {
+      setPhase((current) => (current === "talking" ? "ended" : current));
+    }, 14000);
     await playVoice();
+    window.setTimeout(() => window.clearTimeout(failSafe), 16000);
   }
 
   return (

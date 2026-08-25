@@ -70,6 +70,7 @@ export default function AftermathApp() {
     setResult(null);
     setBootStep(0);
     setPhase("booting");
+    const started = Date.now();
     try {
       const response = await fetch("/api/simulate", {
         method: "POST",
@@ -78,6 +79,8 @@ export default function AftermathApp() {
       });
       const data = (await response.json()) as SimulationResult & { error?: string };
       if (!response.ok) throw new Error(data.error || "Simulation failed");
+      const wait = Math.max(0, 4200 - (Date.now() - started));
+      await new Promise((resolve) => setTimeout(resolve, wait));
       setResult(data);
       setPhase("theater");
     } catch (err) {
